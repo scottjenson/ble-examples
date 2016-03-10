@@ -23,7 +23,7 @@
 EddystoneService *eddyServicePtr;
 
 /* Duration after power-on that config service is available. */
-static const int CONFIG_ADVERTISEMENT_TIMEOUT_SECONDS = 30;
+static const int CONFIG_ADVERTISEMENT_TIMEOUT_SECONDS = 5;      //scott: reducing time just for testing
 
 /* Default UID frame data */
 static const UIDNamespaceID_t uidNamespaceID = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99};
@@ -62,6 +62,7 @@ static void disconnectionCallback(const Gap::DisconnectionCallbackParams_t *cbPa
 {
     (void) cbParams;
     BLE::Instance().gap().startAdvertising();
+    led_off();      //scott: Turn off the LED only after disconnect
 }
 
 /**
@@ -83,6 +84,43 @@ static void timeout(void)
     }
 }
 
+// Blink the LED to show that we're in config mode
+static int stillBlinking = 0;
+static const int BLINKY_ON = 200;
+static const int BLINKY_OFF = 600;
+
+// Recursively calls itself to toggle the LED
+// global stillBlinking is the flag to stop, set in config_LED_off/on
+static void blinky(void)
+{
+    // Creating a blink effect (more off than on)
+    if (stillBlinking) {
+        if (led) {
+            minar::Scheduler::postCallback(blinky).delay(minar::milliseconds(BLINKY_OFF));
+        }
+        else {
+            minar::Scheduler::postCallback(blinky).delay(minar::milliseconds(BLINKY_ON));
+        }
+        led = !led;
+    }
+}
+
+// Stops the blinking
+static void config_LED_off(void) {
+    led = LED_OFF;
+    stillBlinking = 0;
+}
+
+// Starts the blinking
+// Starts 2 minar tasks one to blink the LED and one to eventually turn it off
+static void config_LED_on(void) {
+    stillBlinking = 1;
+    led = !LED_OFF;
+    minar::Scheduler::postCallback(blinky).delay(minar::milliseconds(BLINKY_ON));
+    minar::Scheduler::postCallback(config_LED_off).delay(minar::milliseconds(CONFIG_ADVERTISEMENT_TIMEOUT_SECONDS * 1000));
+}
+
+
 /**
  * Callback used to handle button presses from thread mode (not IRQ)
  */
@@ -96,6 +134,7 @@ static void button_task(void) {
 
         /* Turn the red LED on and schedule a task to turn it off in 1s */
         redled = !REDLED_OFF;
+        config_LED_off(); // scott: just in case it's still running...
         minar::Scheduler::postCallback(red_off).delay(minar::milliseconds(1000));
     } else {
         /* We always startup in config mode */
@@ -105,9 +144,7 @@ static void button_task(void) {
                  .delay(minar::milliseconds(CONFIG_ADVERTISEMENT_TIMEOUT_SECONDS * 1000))
                  .getHandle();
 
-        /* Turn on the main LED and schedule a task to turn it off in 1s */
-        led = !LED_OFF;
-        minar::Scheduler::postCallback(led_off).delay(minar::milliseconds(1000));
+        config_LED_on();
     }
 }
 
@@ -124,11 +161,6 @@ static void button_task(void) {
 static void reset_rise(void)
 {
     minar::Scheduler::postCallback(button_task);
-}
-
-static void blinky(void)
-{
-    led = !led;
 }
 
 static void onBleInitError(BLE::InitializationCompleteCallbackContext* initContext)
@@ -169,8 +201,8 @@ static void bleInitComplete(BLE::InitializationCompleteCallbackContext* initCont
     }
 
     /* Start Eddystone in config mode */
+    config_LED_on();
     eddyServicePtr->startConfigService();
-
     handle = minar::Scheduler::postCallback(timeout)
              .delay(minar::milliseconds(CONFIG_ADVERTISEMENT_TIMEOUT_SECONDS * 1000))
              .getHandle();
@@ -184,12 +216,6 @@ void app_start(int, char *[])
     setbuf(stdin, NULL);
 
     button.rise(&reset_rise);
-
-    // minar::Scheduler::postCallback(blinky).period(minar::milliseconds(500));
-
-    /* Turn on the main LED to inform the user we're powered on. Turn it off in 1s */
-    led = !LED_OFF;
-    minar::Scheduler::postCallback(led_off).delay(minar::milliseconds(1000));
 
     BLE &ble = BLE::Instance();
     ble.init(bleInitComplete);
