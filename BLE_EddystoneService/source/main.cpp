@@ -23,7 +23,7 @@
 EddystoneService *eddyServicePtr;
 
 /* Duration after power-on that config service is available. */
-static const int CONFIG_ADVERTISEMENT_TIMEOUT_SECONDS = 5;      //scott: reducing time just for testing
+static const int CONFIG_ADVERTISEMENT_TIMEOUT_SECONDS = 30;
 
 /* Default UID frame data */
 static const UIDNamespaceID_t uidNamespaceID = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99};
@@ -84,13 +84,16 @@ static void timeout(void)
     }
 }
 
-// Blink the LED to show that we're in config mode
+/**
+ * Scott:
+ * Blink the LED to show that we're in config mode
+ */
 static int stillBlinking = 0;
 static const int BLINKY_ON = 200;
 static const int BLINKY_OFF = 600;
 
-// Recursively calls itself to toggle the LED
-// global stillBlinking is the flag to stop, set in config_LED_off/on
+// Could be better way to do this. Recursively calls itself to toggle the LED
+// global stillBlinking is the flag to stop, set in config_LED_off
 static void blinky(void)
 {
     // Creating a blink effect (more off than on)
@@ -112,7 +115,6 @@ static void config_LED_off(void) {
 }
 
 // Starts the blinking
-// Starts 2 minar tasks one to blink the LED and one to eventually turn it off
 static void config_LED_on(void) {
     stillBlinking = 1;
     led = !LED_OFF;
@@ -144,6 +146,10 @@ static void button_task(void) {
                  .delay(minar::milliseconds(CONFIG_ADVERTISEMENT_TIMEOUT_SECONDS * 1000))
                  .getHandle();
 
+        /* Turn on the main LED and schedule a task to turn it off after 1s timeout */
+        // scott: moved this into config_LED_on
+        //led = !LED_OFF;
+        //minar::Scheduler::postCallback(led_off).delay(minar::milliseconds(CONFIG_ADVERTISEMENT_TIMEOUT_SECONDS * 1000));
         config_LED_on();
     }
 }
@@ -216,6 +222,13 @@ void app_start(int, char *[])
     setbuf(stdin, NULL);
 
     button.rise(&reset_rise);
+
+    // minar::Scheduler::postCallback(blinky).period(minar::milliseconds(500));
+
+    /* Turn on the main LED to inform the user we're powered on. Turn it off in 1s */
+    // scott: This logic has been moved into bleInitComplete
+    //led = !LED_OFF;
+    //minar::Scheduler::postCallback(led_off).delay(minar::milliseconds(1000));
 
     BLE &ble = BLE::Instance();
     ble.init(bleInitComplete);
