@@ -62,7 +62,7 @@ static void disconnectionCallback(const Gap::DisconnectionCallbackParams_t *cbPa
 {
     (void) cbParams;
     BLE::Instance().gap().startAdvertising();
-    led_off();      //scott: Turn off the LED only after disconnect
+    led_off();
 }
 
 /**
@@ -85,7 +85,6 @@ static void timeout(void)
 }
 
 /**
- * Scott:
  * Blink the LED to show that we're in config mode
  */
 static int stillBlinking = 0;
@@ -136,7 +135,7 @@ static void button_task(void) {
 
         /* Turn the red LED on and schedule a task to turn it off in 1s */
         redled = !REDLED_OFF;
-        config_LED_off(); // scott: just in case it's still running...
+        config_LED_off();   // just in case it's still running...
         minar::Scheduler::postCallback(red_off).delay(minar::milliseconds(1000));
     } else {
         /* We always startup in config mode */
@@ -147,9 +146,6 @@ static void button_task(void) {
                  .getHandle();
 
         /* Turn on the main LED and schedule a task to turn it off after 1s timeout */
-        // scott: moved this into config_LED_on
-        //led = !LED_OFF;
-        //minar::Scheduler::postCallback(led_off).delay(minar::milliseconds(CONFIG_ADVERTISEMENT_TIMEOUT_SECONDS * 1000));
         config_LED_on();
     }
 }
@@ -222,13 +218,6 @@ void app_start(int, char *[])
     setbuf(stdin, NULL);
 
     button.rise(&reset_rise);
-
-    // minar::Scheduler::postCallback(blinky).period(minar::milliseconds(500));
-
-    /* Turn on the main LED to inform the user we're powered on. Turn it off in 1s */
-    // scott: This logic has been moved into bleInitComplete
-    //led = !LED_OFF;
-    //minar::Scheduler::postCallback(led_off).delay(minar::milliseconds(1000));
 
     BLE &ble = BLE::Instance();
     ble.init(bleInitComplete);
